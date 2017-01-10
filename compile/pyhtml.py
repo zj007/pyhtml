@@ -11,37 +11,55 @@ from copy import deepcopy
 
 
 class Tag(object):
-    def __init__(self, tag, content='', **attrs):
+    def __init__(self, tag, content=''):
         self._tag = tag
         self._content = content
-        self._attrs = attrs
+        self._attrs = {}
         self._child = ''
         self._initialize()
 
     def _initialize(self):
         #tag,id,class
-        m = re.match(r'(?P<tag>[\w]+)(\#(?P<id>[\w]+))?(\.(?P<class>[\w\s]+))?', self._tag)
+        m = re.match(r'(?P<tag>[\w:]+)(\#(?P<id>[\w\-_]+))?(\.(?P<class>[\w\s\-_]+))?(\[(?P<attr>[\w\s:/=;\.\-@]+)\])?', self._tag)
         for k, v in m.groupdict().items():
             if k == 'tag':
                 if v is None:
                     raise Exception('tag is empty string')
                 self._tag = v
+                if v == 'test':
+                    print m.groupdict().items()
+                continue
+            if k == 'attr':
+                attr_value_l = [e.split('=') for e in v.split(';')] if v is not None else []
+                for attr, value in attr_value_l:
+                    self._attrs[attr.strip()] = value.strip()
                 continue
             if v is not None:
-                self._attrs[k] = v
+                self._attrs[k] = v.strip()
 
     def _attrs2str(self):
         attr_str = ' '.join(['{}="{}"'.format(k, v) for k, v in self._attrs.items()])
         attr_str = ' ' + attr_str if attr_str != '' else ''
         return attr_str
 
-    def __gt__(self, child_list):
-        _child_list = []
-        for e in child_list:
+    def name(self):
+        return self._tag
+
+    def _recursive_flat_list(self, l):
+        _l = []
+        for e in l:
             if isinstance(e, list):
-                _child_list.extend(e)
+                _l.extend(self._recursive_flat_list(e))
             else:
-                _child_list.append(e)
+                _l.append(e)
+        return _l
+
+    def __gt__(self, child_list):
+        _child_list = self._recursive_flat_list(child_list)
+        #strip \n in string
+        for i, c in enumerate(_child_list):
+            if isinstance(c, (str, unicode)):
+                _child_list[i] = ''.join([e.strip() for e in c.strip().split('\n')])
         self._child = ''.join(str(e) for e in _child_list)
         return self
 
@@ -52,7 +70,6 @@ class Tag(object):
                                                         content=self._content,
                                                         child=self._child)
     
-
 
 class load(object):
     def __call__(self, module):
@@ -85,9 +102,6 @@ class load(object):
         if module_dir is None:
             raise Exception('can not find module<{}>'.format(module))
         return os.path.join(module_dir, '{}.ph'.format(module))
-
-                
-
 
 
 class ddict(dict):
